@@ -68,17 +68,13 @@ tasks.register('shadowJar', Jar) {
 	archiveClassifier.set('shadow')
 	archiveFileName.set("${rootProject.name}-${project.version}-all.jar")
 }
-package com.example.zeroscounter;
+package com.zerohittracker;
 
 import com.google.inject.Provides;
 import javax.inject.Inject;
 import java.awt.BorderLayout;
-import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import javax.swing.JButton;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
 
 import net.runelite.api.Client;
 import net.runelite.api.events.HitsplatApplied;
@@ -91,12 +87,16 @@ import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.PluginPanel;
 
+import javax.swing.JButton;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+
 @PluginDescriptor(
-        name = "Zero Hit Counter",
-        description = "Tracks how many times you hit a zero and allows resetting the count",
-        tags = {"combat", "tracker", "zeros"}
+        name = "Zero Hit Tracker",
+        description = "Tracks how many times you hit a zero in combat",
+        tags = {"combat", "tracker", "hits", "zeros"}
 )
-public class ZeroHitCounterPlugin extends Plugin
+public class ZeroHitTrackerPlugin extends Plugin
 {
     @Inject
     private Client client;
@@ -107,12 +107,6 @@ public class ZeroHitCounterPlugin extends Plugin
     private int zeroCount = 0;
     private JLabel counterLabel;
     private PluginPanel panel;
-
-    @Provides
-    ZeroHitCounterConfig provideConfig(ConfigManager configManager)
-    {
-        return configManager.getConfig(ZeroHitCounterConfig.class);
-    }
 
     @Override
     protected void startUp()
@@ -131,11 +125,10 @@ public class ZeroHitCounterPlugin extends Plugin
     {
         panel = new PluginPanel();
         panel.setLayout(new BorderLayout());
-        panel.setPreferredSize(new Dimension(150, 100));
 
-        counterLabel = new JLabel("Zeros hit: 0", JLabel.CENTER);
-
+        counterLabel = new JLabel("Zeros hit: 0");
         JButton resetButton = new JButton("Reset");
+
         resetButton.addActionListener(new ActionListener()
         {
             @Override
@@ -146,8 +139,11 @@ public class ZeroHitCounterPlugin extends Plugin
             }
         });
 
-        panel.add(counterLabel, BorderLayout.CENTER);
-        panel.add(resetButton, BorderLayout.SOUTH);
+        JPanel topPanel = new JPanel();
+        topPanel.add(counterLabel);
+        topPanel.add(resetButton);
+
+        panel.add(topPanel, BorderLayout.NORTH);
     }
 
     private void updateLabel()
@@ -160,27 +156,53 @@ public class ZeroHitCounterPlugin extends Plugin
     {
         Hitsplat hitsplat = event.getHitsplat();
 
-        // Only count your own damage zeros
+        // Only count damage from the local player
         if (hitsplat.getHitsplatType() == HitsplatID.DAMAGE_ME
-                || hitsplat.getHitsplatType() == HitsplatID.DAMAGE_MAX_ME)
+                || hitsplat.getHitsplatType() == HitsplatID.DAMAGE_OTHER)
         {
-            return; // Ignore damage taken
-        }
-
-        if (hitsplat.getAmount() == 0)
-        {
-            zeroCount++;
-            updateLabel();
+            if (hitsplat.getAmount() == 0)
+            {
+                zeroCount++;
+                updateLabel();
+            }
         }
     }
+
+    @Provides
+    ZeroHitTrackerConfig provideConfig(ConfigManager configManager)
+    {
+        return configManager.getConfig(ZeroHitTrackerConfig.class);
+    }
 }
-package com.example.zeroscounter;
+package com.zerohittracker;
 
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 
-@ConfigGroup("zerohitcounter")
-public interface ZeroHitCounterConfig extends Config
+@ConfigGroup("zerohittracker")
+public interface ZeroHitTrackerConfig extends Config
 {
-    // No config options for now, but required for RuneLite plugin structure
+    // No config options for now, but can be extended later
+}
+plugins {
+    id 'java'
+}
+
+group = 'com.zerohittracker'
+version = '1.0.0'
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://repo.runelite.net' }
+}
+
+dependencies {
+    compileOnly group: 'net.runelite', name: 'client', version: '1.10.0' // Match your RuneLite version
+    annotationProcessor group: 'net.runelite', name: 'client', version: '1.10.0'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
 }
