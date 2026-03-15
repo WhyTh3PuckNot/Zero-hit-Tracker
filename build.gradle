@@ -68,13 +68,14 @@ tasks.register('shadowJar', Jar) {
 	archiveClassifier.set('shadow')
 	archiveFileName.set("${rootProject.name}-${project.version}-all.jar")
 }
-package com.zerohittracker;
+package com.example.zeroscounter;
 
 import com.google.inject.Provides;
 import javax.inject.Inject;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -87,42 +88,71 @@ import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.PluginPanel;
 
 @PluginDescriptor(
-    name = "Zero Hit Tracker",
-    description = "Tracks how many times you hit a zero in combat",
-    tags = {"combat", "tracker", "pvm", "pvp"}
+        name = "Zero Hit Counter",
+        description = "Tracks how many times you hit a zero and allows resetting the count",
+        tags = {"combat", "tracker", "zeros"}
 )
-public class ZeroHitTrackerPlugin extends Plugin
+public class ZeroHitCounterPlugin extends Plugin
 {
     @Inject
     private Client client;
 
     @Inject
-    private ZeroHitTrackerConfig config;
+    private ClientToolbar clientToolbar;
 
-    private int zeroHitCount = 0;
+    private int zeroCount = 0;
     private JLabel counterLabel;
+    private PluginPanel panel;
 
     @Provides
-    ZeroHitTrackerConfig provideConfig(ConfigManager configManager)
+    ZeroHitCounterConfig provideConfig(ConfigManager configManager)
     {
-        return configManager.getConfig(ZeroHitTrackerConfig.class);
+        return configManager.getConfig(ZeroHitCounterConfig.class);
     }
 
     @Override
     protected void startUp()
     {
-        zeroHitCount = 0;
         buildPanel();
+        clientToolbar.addNavigation(panel);
     }
 
     @Override
     protected void shutDown()
     {
-        zeroHitCount = 0;
-        counterLabel = null;
+        clientToolbar.removeNavigation(panel);
+    }
+
+    private void buildPanel()
+    {
+        panel = new PluginPanel();
+        panel.setLayout(new BorderLayout());
+        panel.setPreferredSize(new Dimension(150, 100));
+
+        counterLabel = new JLabel("Zeros hit: 0", JLabel.CENTER);
+
+        JButton resetButton = new JButton("Reset");
+        resetButton.addActionListener(new ActionListener()
+        {
+            @Override
+            public void actionPerformed(ActionEvent e)
+            {
+                zeroCount = 0;
+                updateLabel();
+            }
+        });
+
+        panel.add(counterLabel, BorderLayout.CENTER);
+        panel.add(resetButton, BorderLayout.SOUTH);
+    }
+
+    private void updateLabel()
+    {
+        counterLabel.setText("Zeros hit: " + zeroCount);
     }
 
     @Subscribe
@@ -130,52 +160,27 @@ public class ZeroHitTrackerPlugin extends Plugin
     {
         Hitsplat hitsplat = event.getHitsplat();
 
-        // Only count player damage hitsplats
-        if (hitsplat.getHitsplatType() == HitsplatID.DAMAGE_ME || hitsplat.getHitsplatType() == HitsplatID.DAMAGE_OTHER)
+        // Only count your own damage zeros
+        if (hitsplat.getHitsplatType() == HitsplatID.DAMAGE_ME
+                || hitsplat.getHitsplatType() == HitsplatID.DAMAGE_MAX_ME)
         {
-            if (hitsplat.getAmount() == 0)
-            {
-                zeroHitCount++;
-                updateCounter();
-            }
+            return; // Ignore damage taken
         }
-    }
 
-    private void buildPanel()
-    {
-        PluginPanel panel = new PluginPanel();
-        panel.setLayout(new BorderLayout());
-        panel.setPreferredSize(new Dimension(150, 100));
-
-        counterLabel = new JLabel("Zero Hits: 0", JLabel.CENTER);
-        JButton resetButton = new JButton("Reset");
-
-        resetButton.addActionListener((ActionEvent e) -> {
-            zeroHitCount = 0;
-            updateCounter();
-        });
-
-        panel.add(counterLabel, BorderLayout.CENTER);
-        panel.add(resetButton, BorderLayout.SOUTH);
-
-        getPluginPanel().add(panel);
-    }
-
-    private void updateCounter()
-    {
-        if (counterLabel != null)
+        if (hitsplat.getAmount() == 0)
         {
-            counterLabel.setText("Zero Hits: " + zeroHitCount);
+            zeroCount++;
+            updateLabel();
         }
     }
 }
-package com.zerohittracker;
+package com.example.zeroscounter;
 
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 
-@ConfigGroup("zerohittracker")
-public interface ZeroHitTrackerConfig extends Config
+@ConfigGroup("zerohitcounter")
+public interface ZeroHitCounterConfig extends Config
 {
-    // No config options yet, but can be extended later
+    // No config options for now, but required for RuneLite plugin structure
 }
